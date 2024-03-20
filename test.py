@@ -1,13 +1,33 @@
+#To interact with the web
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
 import math
+
+# For date and tracking
+from datetime import date
 
 #todo graphics
 import matplotlib.pyplot as plt
 
-# print(selenium.__version__)
+
+# Get date
+today = date.today()
+print("Today's date:", today)
+
+#todo json file
+# try:
+#   file = open("tracking.json", "r")
+#   print("File found.")
+#   file.write(f"{today}:")
+# except:
+#   print("No file found. Creating a new one...")
+#   file = open("tracking.json", "w")
+#   file.write(f"\"{today}\":")
+#   file.close()
+#   print("File created.")
 
 # Heres your Buscalibre Wishlist URL
 url = "https://www.buscalibre.cl/v2/cosmere_1647219_l.html"
@@ -38,16 +58,26 @@ try:
     except:
       normalPrice = priceNow
 
-    descuento = math.ceil(100-(100/(normalPrice/priceNow)))
+    # Calculate the discount percentage
+    discount = math.ceil(100-(100/(normalPrice/priceNow)))
 
-    libros = {
+    # Print the book's info
+    books = {
       "title": title,
       "priceNow": priceNow,
       "normalPrice": normalPrice,
-      "discount": descuento
+      "discount": discount
     }
 
-    print(f"{libros["title"]}: ${libros['priceNow']} ({libros["Discount"]}% OFF)")
+    print(books)
+
+    # Save on tracking file
+    # try:
+    #   file = open("tracking.json", "a")
+    #   file.write(f"[{books}],")
+    #   file.close()
+    # except:
+    #   print("Error saving the tracking file.")
 
 except Exception as e:
   print("Oops. There was an error: " + e)
