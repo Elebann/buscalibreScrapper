@@ -8,7 +8,7 @@ from selenium.webdriver.support import expected_conditions as EC
 
 class BuscalibreScraper:
     def __init__(self, url, tracking_file="tracking.json"):
-		# setup
+        # setup
         self.url = url
         self.tracking_file = tracking_file
         # date
@@ -46,7 +46,7 @@ class BuscalibreScraper:
     def scrape(self):
         try:
             self.driver.get(self.url)
-			# wait until the page is loaded
+            # wait until the page is loaded
             WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
             # get the quantity of books
             books_quantity = len(self.driver.find_elements(By.CLASS_NAME, 'contenedorProducto'))
@@ -63,30 +63,39 @@ class BuscalibreScraper:
     def _process_books(self, books_quantity):
         for i in range(books_quantity):
             
-			# the title
+			# get the link to the book
+            try:
+                book_link = self.driver.find_elements(By.CSS_SELECTOR, '.infoProducto .titulo a')[i].get_attribute('href')
+            except:
+                book_link = None
+                print("No link found for the book: ", title)
+
+            # the title
             title = self.driver.find_elements(By.CSS_SELECTOR, '.infoProducto .titulo')[i].text
             
-			# the price
+            # the price
             price_now = int(self.driver.find_elements
                         	(By.CSS_SELECTOR, '.infoProducto .precioAhora')
                         	[i].text.replace("$ ", "").replace(".", ""))
             
-			# if there is a normal (no discount price), get it
+            # if there is a normal (no discount price), get it
             try:
                 normal_price = int(self.driver.find_elements
                                    (By.CSS_SELECTOR, '.infoProducto .precioTachado')
                                    [i].text.replace("$ ", "").replace(".", ""))
             except:
                 normal_price = price_now
+                
             discount = math.ceil(100 - (100 / (normal_price / price_now))) # Calculate the discount (this might not be as accurate as expected compared to the website, but it’s a good approximation—almost 99% close to the website). Also, ceil is not used because that function could produce unexpected results.
             
 			# create a dictionary with the book data
             book = {
                 "title": title,
-                "priceNow": price_now,
-                "normalPrice": normal_price,
-                "discount": discount
-            }
+				"priceNow": price_now,
+				"normalPrice": normal_price,
+				"discount": discount,
+				"link": book_link
+			}
             # update the register
             self._update_register(book)
 
