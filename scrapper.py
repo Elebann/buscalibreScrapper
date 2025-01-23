@@ -48,8 +48,11 @@ class BuscalibreScraper:
             self.driver.get(self.url)
             # wait until the page is loaded
             WebDriverWait(self.driver, 10).until(EC.presence_of_element_located((By.TAG_NAME, 'body')))
+            name_list = self.driver.find_element(By.CSS_SELECTOR, '.nombreLista').text
+            print(f"Wishlist \"{name_list}\" found...")
             # get the quantity of books
             books_quantity = len(self.driver.find_elements(By.CLASS_NAME, 'contenedorProducto'))
+            print(f"Found {books_quantity} books.")
             # call methods to proceeed
             self._process_books(books_quantity)
             self._save_tracking_file()
