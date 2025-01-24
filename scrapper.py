@@ -46,7 +46,8 @@ class BuscalibreScraper:
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS books (
                 id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-                title VARCHAR(120) NOT NULL
+                title VARCHAR(120) NOT NULL,
+                url VARCHAR(255) NOT NULL UNIQUE
                 );
             """)
 
@@ -110,15 +111,10 @@ class BuscalibreScraper:
         for i in range(books_quantity):
             
 			# get the link to the book
-            try:
-                book_link = self.driver.find_elements(By.CSS_SELECTOR, '.infoProducto .titulo a')[i].get_attribute('href')
-            except:
-                book_link = None
-                print("No link found for the book: ", title)
-
+            book_url = self.driver.find_elements(By.CSS_SELECTOR, '.infoProducto .titulo a')[i].get_attribute('href')
             # the title
             title = self.driver.find_elements(By.CSS_SELECTOR, '.infoProducto .titulo')[i].text
-            
+
             # the price
             price_now = int(self.driver.find_elements
                         	(By.CSS_SELECTOR, '.infoProducto .precioAhora')
@@ -132,7 +128,7 @@ class BuscalibreScraper:
             except:
                 normal_price = price_now
                 
-            discount = math.ceil(100 - (100 / (normal_price / price_now))) # Calculate the discount (this might not be as accurate as expected compared to the website, but it’s a good approximation—almost 99% close to the website). Also, ceil is not used because that function could produce unexpected results.
+            discount = math.ceil(100 - (100 / (normal_price / price_now))) # Calculate the discount (this might not be as accurate as expected compared to the website, but it’s a good approximation—almost 99% close to the website).
             
 			# create a dictionary with the book data
             book = {
@@ -140,7 +136,7 @@ class BuscalibreScraper:
 				"priceNow": price_now,
 				"normalPrice": normal_price,
 				"discount": discount,
-				"link": book_link
+				"url": book_url
 			}
             # update the register
             self._update_register(book)
@@ -152,32 +148,49 @@ class BuscalibreScraper:
     def _insert_into_sqlite(self, book):
         try:
             conn = sqlite3.connect(self.sqlite_db)
+            conn.execute("PRAGMA foreign_keys = ON;")  # Enable foreign keys
             cursor = conn.cursor()
 
-            # todo fix duplicate entries: books, prices
-
-            # Insert date if not exists
-            cursor.execute("INSERT OR IGNORE INTO dates (date) VALUES (?)", (self.today,)) # date column is unique
-            # Get date id for parent key of prices
+            # Check if today's date is already in the database
+            cursor.execute("INSERT OR IGNORE INTO dates (date) VALUES (?)", (self.today,))
             cursor.execute("SELECT id FROM dates WHERE date = ?", (self.today,))
-            date_id = cursor.fetchone()[0]
+            date_id = cursor.fetchone()[0]  # get today's ID
 
-            # Insert book if not exists
-            cursor.execute("INSERT OR IGNORE INTO books (title) VALUES (?)", (book["title"],))
-            cursor.execute("SELECT id FROM books WHERE title = ?", (book["title"],))
-            book_id = cursor.fetchone()[0]
+            # Check if the book is already in the database
+            cursor.execute("SELECT id FROM books WHERE url = ?", (book["url"],))
+            book_result = cursor.fetchone()
+            
+            if book_result:
+                book_id = book_result[0]  # Get the book's ID
+                print(f"SQLITE: '{book['title']}' is already in the database.")
+            else:
+                # Insert new book
+                cursor.execute("INSERT INTO books (title, url) VALUES (?, ?)", (book["title"], book["url"]))
+                book_id = cursor.lastrowid
+                print(f"SQLITE: '{book['title']}' added to the database.")
 
-            # Insert price
+            # Check if the price of the book is already in the database
             cursor.execute("""
-                INSERT INTO prices (date_id, book_id, price_now, normal_price, discount)
-                VALUES (?, ?, ?, ?, ?)
-            """, (date_id, book_id, book["priceNow"], book["normalPrice"], book["discount"]))
+                SELECT id FROM prices
+                WHERE date_id = ? AND book_id = ?
+            """, (date_id, book_id))
+            price_result = cursor.fetchone()
+            if price_result:
+                print(f"SQLITE: '{book['title']}' - Price of the book is already registered.")
+            else:
+                # Insert price of the book
+                cursor.execute("""
+                    INSERT INTO prices (date_id, book_id, price_now, normal_price, discount)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (date_id, book_id, book["priceNow"], book["normalPrice"], book["discount"]))
+                print(f"SQLITE: '{book['title']}' - Price of the book added to the database.")
 
+            # Confirmar los cambios
             conn.commit()
-            conn.close()
-            print(f"Data for book \"{book['title']}\" inserted into the database.")
         except Exception as e:
-            print("Error inserting data into the database:", e)
+            print("SQLITE: Error uploading the books to the database", e)
+        finally:
+            conn.close()
 
     def _update_register(self, book):
         # if the date is already in the register..    
@@ -186,7 +199,7 @@ class BuscalibreScraper:
             if book not in self.register[self.today]:
                 # so we add it
                 self.register[self.today].append(book)
-                print(f"New book {book.get('title')} added to the tracker")
+                print(f"JSON: New book {book.get('title')} added to the tracker")
         # if not, we create a new key with the book
         else:
             self.register[self.today] = [book]
