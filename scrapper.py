@@ -18,9 +18,9 @@ class BuscalibreScraper:
         self.today = self.now.strftime("%d-%m-%Y")
         # drive
         self.driver = self._init_driver()
-        # tracking
+        # json tracking
         self.register = self._load_tracking_file()
-        # todo sqlite
+        # sqlite tracking
         self.sqlite_db = sqlite_db
         self._init_sqlite()
 
@@ -30,7 +30,6 @@ class BuscalibreScraper:
         chrome_options.add_argument('--headless') # no GUI
         return webdriver.Chrome(options=chrome_options)
     
-    # todo init sqlite, create schema
     def _init_sqlite(self):
         try:
             conn = sqlite3.connect(self.sqlite_db)
@@ -43,7 +42,6 @@ class BuscalibreScraper:
                 date DATE NOT NULL UNIQUE
                 );
             """)
-            
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS books (
                 id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +49,6 @@ class BuscalibreScraper:
                 url VARCHAR(255) NOT NULL UNIQUE
                 );
             """)
-
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS prices (
                 id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
@@ -80,7 +77,7 @@ class BuscalibreScraper:
             print("No file found. Creating a new one...")
             with open(self.tracking_file, "w") as file:
                 file.write("{}") # writing an empty dict which is required
-            print(f"File \"{self.tracking_file}\" created.")
+                print(f"File \"{self.tracking_file}\" created.")
             return {}
 
     """ Scrape the data from the website. this is the HTML params, if the website changes, this will need to be updated:
@@ -103,8 +100,7 @@ class BuscalibreScraper:
             self._save_tracking_file()
             
         except Exception as e:
-            print("Scrape method: Oops. There was an error...", e)
-            
+            print("Oops. There was an error... Did you use a wishlist url?")
         finally:
             self.driver.quit()
 
@@ -141,11 +137,8 @@ class BuscalibreScraper:
 			}
             # update the register
             self._update_register(book)
-
-            # todo: insert into sqlite
             self._insert_into_sqlite(book)
 
-    # todo: insert into sqlite
     def _insert_into_sqlite(self, book):
         try:
             conn = sqlite3.connect(self.sqlite_db)
@@ -163,12 +156,11 @@ class BuscalibreScraper:
             
             if book_result:
                 book_id = book_result[0]  # Get the book's ID
-                print(f"SQLITE: '{book['title']}' is already in the database.")
             else:
                 # Insert new book
                 cursor.execute("INSERT INTO books (title, url) VALUES (?, ?)", (book["title"], book["url"]))
                 book_id = cursor.lastrowid
-                print(f"SQLITE: '{book['title']}' added to the database.")
+                print(f"New book inserted: {book['title']}")
 
             # Check if the price of the book is already in the database
             cursor.execute("""
@@ -176,15 +168,16 @@ class BuscalibreScraper:
                 WHERE date_id = ? AND book_id = ?
             """, (date_id, book_id))
             price_result = cursor.fetchone()
+
             if price_result:
-                print(f"SQLITE: '{book['title']}' - Price of the book is already registered.")
+                pass # The price is already in the database
             else:
                 # Insert price of the book
                 cursor.execute("""
                     INSERT INTO prices (date_id, book_id, price_now, normal_price, discount)
                     VALUES (?, ?, ?, ?, ?)
                 """, (date_id, book_id, book["priceNow"], book["normalPrice"], book["discount"]))
-                print(f"SQLITE: '{book['title']}' - Price of the book added to the database.")
+
 
             # Confirmar los cambios
             conn.commit()
@@ -200,7 +193,6 @@ class BuscalibreScraper:
             if book not in self.register[self.today]:
                 # so we add it
                 self.register[self.today].append(book)
-                print(f"JSON: New book {book.get('title')} added to the tracker")
         # if not, we create a new key with the book
         else:
             self.register[self.today] = [book]
