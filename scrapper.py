@@ -2,6 +2,7 @@ import json
 import math
 import sqlite3
 from datetime import datetime
+# pip install selenium
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
